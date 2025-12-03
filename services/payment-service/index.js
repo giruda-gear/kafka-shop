@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import { Kafka } from "kafkajs";
 
 const app = express();
 
@@ -11,6 +12,22 @@ app.use(
 
 app.use(express.json());
 
+const kafka = new Kafka({
+  clientId: "payment-service",
+  brokers: ["localhost:9094"],
+});
+
+const producer = kafka.producer();
+
+const connectToKafka = async () => {
+  try {
+    await producer.connect();
+    console.log("Producer connected");
+  } catch (error) {
+    console.log("Error connecting to Kafka", error);
+  }
+};
+
 app.post("/payment-service", async (req, res) => {
   const { cart } = req.body;
   // asume that we get the cookie and decrypt the user id
@@ -18,8 +35,11 @@ app.post("/payment-service", async (req, res) => {
 
   // TODO: payment
   console.log("API endpoint hit!");
-
   // kafka
+  await producer.send({
+    topic: "payment-successful",
+    messages: [{ value: JSON.stringify({ userId, cart }) }],
+  });
 
   return res.status(200).send("payment success");
 });
@@ -29,5 +49,6 @@ app.use((err, req, next) => {
 });
 
 app.listen(8000, () => {
+  connectToKafka();
   console.log("payment service is running.");
 });
